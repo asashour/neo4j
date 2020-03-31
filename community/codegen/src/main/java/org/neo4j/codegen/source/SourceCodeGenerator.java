@@ -45,7 +45,7 @@ class SourceCodeGenerator extends CodeGenerator
     }
 
     @Override
-    protected ClassEmitter generate( TypeReference type, TypeReference base, TypeReference[] interfaces )
+    protected ClassEmitter generate( TypeReference type, TypeReference base, TypeReference... interfaces )
     {
         StringBuilder target = new StringBuilder();
         synchronized ( this )

@@ -69,7 +69,7 @@ class NativeLabelScanReader implements LabelScanReader
     }
 
     @Override
-    public PrimitiveLongResourceIterator nodesWithAnyOfLabels( long fromId, int... labelIds )
+    public PrimitiveLongResourceIterator nodesWithAnyOfLabels( long fromId, int[] labelIds )
     {
         List<PrimitiveLongResourceIterator> iterators = iteratorsForLabels( fromId, labelIds );
         return new CompositeLabelScanValueIterator( iterators, false );
