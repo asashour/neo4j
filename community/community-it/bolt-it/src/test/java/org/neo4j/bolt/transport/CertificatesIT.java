@@ -20,9 +20,9 @@
 package org.neo4j.bolt.transport;
 
 import org.bouncycastle.operator.OperatorCreationException;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 import java.io.File;
 import java.io.IOException;
@@ -51,8 +51,8 @@ public class CertificatesIT
     private static SelfSignedCertificateFactory certFactory;
     private static TransportTestUtil util;
 
-    @Rule
-    public Neo4jWithSocket server = new Neo4jWithSocket( getClass(), settings ->
+    @RegisterExtension
+    public Neo4jWithSocketJUnit5 server = new Neo4jWithSocketJUnit5( getClass(), settings ->
     {
         SslPolicyConfig policy = SslPolicyConfig.forScope( BOLT );
         settings.put( policy.enabled, true );
@@ -92,7 +92,7 @@ public class CertificatesIT
         return (X509Certificate) certificates[0];
     }
 
-    @BeforeClass
+    @BeforeAll
     public static void setUp() throws IOException, GeneralSecurityException, OperatorCreationException
     {
         certFactory = new SelfSignedCertificateFactory();

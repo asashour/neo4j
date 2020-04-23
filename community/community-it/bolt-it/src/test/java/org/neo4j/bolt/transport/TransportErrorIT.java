@@ -19,16 +19,19 @@
  */
 package org.neo4j.bolt.transport;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.Arrays;
 
 import org.neo4j.bolt.AbstractBoltTransportsTest;
 import org.neo4j.bolt.messaging.RecordingByteChannel;
 import org.neo4j.bolt.packstream.BufferedChannelOutput;
+import org.neo4j.bolt.packstream.Neo4jPack;
 import org.neo4j.bolt.packstream.PackStream;
+import org.neo4j.bolt.testing.client.TransportConnection;
 import org.neo4j.bolt.v4.messaging.RunMessage;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,18 +40,21 @@ import static org.neo4j.bolt.testing.TransportTestUtil.eventuallyDisconnects;
 
 public class TransportErrorIT extends AbstractBoltTransportsTest
 {
-    @Rule
-    public Neo4jWithSocket server = new Neo4jWithSocket( getClass(), getSettingsFunction() );
+    @RegisterExtension
+    public Neo4jWithSocketJUnit5 server = new Neo4jWithSocketJUnit5( getClass(), getSettingsFunction() );
 
-    @Before
+    @BeforeEach
     public void setup()
     {
         address = server.lookupDefaultConnector();
     }
 
-    @Test
-    public void shouldHandleIncorrectFraming() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldHandleIncorrectFraming( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // Given I have a message that gets truncated in the chunking, so part of it is missing
         byte[] truncated = serialize( util.getNeo4jPack(), new RunMessage( "UNWIND [1,2,3] AS a RETURN a, a * a AS a_squared" ) );
         truncated = Arrays.copyOf(truncated, truncated.length - 12);
@@ -63,9 +69,13 @@ public class TransportErrorIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( eventuallyDisconnects() );
     }
 
-    @Test
-    public void shouldHandleMessagesWithIncorrectFields() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldHandleMessagesWithIncorrectFields(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // Given I send a message with the wrong types in its fields
         final RecordingByteChannel rawData = new RecordingByteChannel();
         final PackStream.Packer packer = new PackStream.Packer( new BufferedChannelOutput( rawData ) );
@@ -87,9 +97,12 @@ public class TransportErrorIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( eventuallyDisconnects() );
     }
 
-    @Test
-    public void shouldHandleUnknownMessages() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldHandleUnknownMessages( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // Given I send a message with an invalid type
         final RecordingByteChannel rawData = new RecordingByteChannel();
         final PackStream.Packer packer = new PackStream.Packer( new BufferedChannelOutput( rawData ) );
@@ -110,9 +123,12 @@ public class TransportErrorIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( eventuallyDisconnects() );
     }
 
-    @Test
-    public void shouldHandleUnknownMarkerBytes() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldHandleUnknownMarkerBytes( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // Given I send a message with an invalid type
         final RecordingByteChannel rawData = new RecordingByteChannel();
         final BufferedChannelOutput out = new BufferedChannelOutput( rawData );

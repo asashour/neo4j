@@ -19,11 +19,10 @@
  */
 package org.neo4j.bolt.transport;
 
-import org.apache.commons.lang3.StringUtils;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.RuleChain;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 import java.util.Map;
 import java.util.function.Consumer;
@@ -49,7 +48,7 @@ import org.neo4j.kernel.impl.util.ValueUtils;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.logging.AssertableLogProvider;
 import org.neo4j.test.TestDatabaseManagementServiceBuilder;
-import org.neo4j.test.rule.fs.EphemeralFileSystemRule;
+import org.neo4j.test.rule.fs.EphemeralFileSystemRuleJUnit5;
 import org.neo4j.values.AnyValue;
 
 import static java.util.Collections.singletonMap;
@@ -61,11 +60,14 @@ import static org.neo4j.logging.LogAssertions.assertThat;
 public class BoltChannelAutoReadLimiterIT
 {
     private AssertableLogProvider logProvider;
-    private EphemeralFileSystemRule fsRule = new EphemeralFileSystemRule();
-    private Neo4jWithSocket server = new Neo4jWithSocket( getClass(), getTestGraphDatabaseFactory(), fsRule, getSettingsFunction() );
 
-    @Rule
-    public RuleChain ruleChain = RuleChain.outerRule( fsRule ).around( server );
+    @RegisterExtension
+    @Order( 1 )
+    EphemeralFileSystemRuleJUnit5 fsRule = new EphemeralFileSystemRuleJUnit5();
+
+    @RegisterExtension
+    @Order( 2 )
+    Neo4jWithSocketJUnit5 server = new Neo4jWithSocketJUnit5( getClass(), getTestGraphDatabaseFactory(), fsRule, getSettingsFunction() );
 
     private HostnamePort address;
     private TransportConnection connection;
@@ -88,7 +90,7 @@ public class BoltChannelAutoReadLimiterIT
         return settings -> settings.put( GraphDatabaseSettings.auth_enabled, false );
     }
 
-    @Before
+    @BeforeEach
     public void setup() throws Exception
     {
         installSleepProcedure( server.graphDatabaseService() );

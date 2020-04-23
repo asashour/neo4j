@@ -19,8 +19,9 @@
  */
 package org.neo4j.bolt.transport;
 
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -31,6 +32,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.neo4j.bolt.AbstractBoltTransportsTest;
+import org.neo4j.bolt.packstream.Neo4jPack;
 import org.neo4j.bolt.testing.client.TransportConnection;
 
 import static java.util.Collections.emptyList;
@@ -44,12 +46,15 @@ import static org.neo4j.bolt.testing.MessageConditions.msgSuccess;
  */
 public class ConcurrentAccessIT extends AbstractBoltTransportsTest
 {
-    @Rule
-    public Neo4jWithSocket server = new Neo4jWithSocket( getClass(), getSettingsFunction() );
+    @RegisterExtension
+    public Neo4jWithSocketJUnit5 server = new Neo4jWithSocketJUnit5( getClass(), getSettingsFunction() );
 
-    @Test
-    public void shouldRunSimpleStatement() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldRunSimpleStatement( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // Given
         int numWorkers = 5;
         int numRequests = 1_000;

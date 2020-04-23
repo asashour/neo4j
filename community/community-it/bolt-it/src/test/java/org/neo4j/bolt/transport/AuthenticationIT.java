@@ -19,10 +19,11 @@
  */
 package org.neo4j.bolt.transport;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.RuleChain;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,6 +37,7 @@ import java.util.function.Consumer;
 
 import org.neo4j.bolt.AbstractBoltTransportsTest;
 import org.neo4j.bolt.messaging.ResponseMessage;
+import org.neo4j.bolt.packstream.Neo4jPack;
 import org.neo4j.bolt.runtime.DefaultBoltConnection;
 import org.neo4j.bolt.testing.client.TransportConnection;
 import org.neo4j.bolt.v3.messaging.response.FailureMessage;
@@ -47,7 +49,7 @@ import org.neo4j.kernel.api.exceptions.Status;
 import org.neo4j.kernel.impl.util.ValueUtils;
 import org.neo4j.logging.AssertableLogProvider;
 import org.neo4j.test.TestDatabaseManagementServiceBuilder;
-import org.neo4j.test.rule.fs.EphemeralFileSystemRule;
+import org.neo4j.test.rule.fs.EphemeralFileSystemRuleJUnit5;
 import org.neo4j.values.AnyValue;
 import org.neo4j.values.virtual.MapValue;
 import org.neo4j.values.virtual.VirtualValues;
@@ -55,7 +57,7 @@ import org.neo4j.values.virtual.VirtualValues;
 import static java.util.Collections.singletonList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.neo4j.bolt.testing.MessageConditions.msgFailure;
 import static org.neo4j.bolt.testing.MessageConditions.msgIgnored;
 import static org.neo4j.bolt.testing.MessageConditions.msgSuccess;
@@ -66,18 +68,21 @@ import static org.neo4j.configuration.GraphDatabaseSettings.SYSTEM_DATABASE_NAME
 import static org.neo4j.internal.helpers.collection.MapUtil.map;
 import static org.neo4j.logging.AssertableLogProvider.Level.WARN;
 import static org.neo4j.logging.LogAssertions.assertThat;
-import static org.neo4j.test.conditions.Conditions.TRUE;
 import static org.neo4j.test.assertion.Assert.assertEventually;
+import static org.neo4j.test.conditions.Conditions.TRUE;
 
 public class AuthenticationIT extends AbstractBoltTransportsTest
 {
-    protected EphemeralFileSystemRule fsRule = new EphemeralFileSystemRule();
     protected final AssertableLogProvider logProvider = new AssertableLogProvider();
-    protected Neo4jWithSocket server =
-            new Neo4jWithSocket( getClass(), getTestGraphDatabaseFactory(), fsRule, getSettingsFunction() );
 
-    @Rule
-    public RuleChain ruleChain = RuleChain.outerRule( fsRule ).around( server );
+    @RegisterExtension
+    @Order( 1 )
+    protected EphemeralFileSystemRuleJUnit5 fsRule = new EphemeralFileSystemRuleJUnit5();
+
+    @RegisterExtension
+    @Order( 2 )
+    protected Neo4jWithSocketJUnit5 server =
+            new Neo4jWithSocketJUnit5( getClass(), getTestGraphDatabaseFactory(), fsRule, getSettingsFunction() );
 
     protected TestDatabaseManagementServiceBuilder getTestGraphDatabaseFactory()
     {
@@ -95,15 +100,19 @@ public class AuthenticationIT extends AbstractBoltTransportsTest
 
     private HostnamePort address;
 
-    @Before
+    @BeforeEach
     public void setup()
     {
         address = server.lookupDefaultConnector();
     }
 
-    @Test
-    public void shouldRespondWithCredentialsExpiredOnFirstUse() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldRespondWithCredentialsExpiredOnFirstUse(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -126,9 +135,13 @@ public class AuthenticationIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( util.eventuallyReceives( msgSuccess() ) );
     }
 
-    @Test
-    public void shouldFailIfWrongCredentials() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldFailIfWrongCredentials(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -157,9 +170,13 @@ public class AuthenticationIT extends AbstractBoltTransportsTest
         }
     }
 
-    @Test
-    public void shouldFailIfWrongCredentialsFollowingSuccessfulLogin() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldFailIfWrongCredentialsFollowingSuccessfulLogin(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -202,9 +219,13 @@ public class AuthenticationIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( eventuallyDisconnects() );
     }
 
-    @Test
-    public void shouldFailIfMalformedAuthTokenWrongType() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldFailIfMalformedAuthTokenWrongType(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -219,9 +240,13 @@ public class AuthenticationIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( eventuallyDisconnects() );
     }
 
-    @Test
-    public void shouldFailIfMalformedAuthTokenMissingKey() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldFailIfMalformedAuthTokenMissingKey(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -235,9 +260,13 @@ public class AuthenticationIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( eventuallyDisconnects() );
     }
 
-    @Test
-    public void shouldFailIfMalformedAuthTokenMissingScheme() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldFailIfMalformedAuthTokenMissingScheme(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -251,9 +280,13 @@ public class AuthenticationIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( eventuallyDisconnects() );
     }
 
-    @Test
-    public void shouldFailIfMalformedAuthTokenUnknownScheme() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldFailIfMalformedAuthTokenUnknownScheme(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -267,9 +300,13 @@ public class AuthenticationIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( eventuallyDisconnects() );
     }
 
-    @Test
-    public void shouldFailDifferentlyIfTooManyFailedAuthAttempts() throws Exception
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldFailDifferentlyIfTooManyFailedAuthAttempts(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Exception
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // Given
         final long timeout = System.currentTimeMillis() + 60_000;
         FailureMessage failureMessage = null;
@@ -324,9 +361,13 @@ public class AuthenticationIT extends AbstractBoltTransportsTest
         assertThat( failureMessage.message() ).contains( "The client has provided incorrect authentication details too many times in a row." );
     }
 
-    @Test
-    public void shouldBeAbleToChangePasswordUsingSystemCommand() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldBeAbleToChangePasswordUsingSystemCommand(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -363,9 +404,12 @@ public class AuthenticationIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( util.eventuallyReceives( msgSuccess() ) );
     }
 
-    @Test
-    public void shouldFailWhenReusingTheSamePassword() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldFailWhenReusingTheSamePassword( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -392,9 +436,12 @@ public class AuthenticationIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( util.eventuallyReceives( msgIgnored(), msgSuccess(), msgSuccess(), msgSuccess() ) );
     }
 
-    @Test
-    public void shouldFailWhenSubmittingEmptyPassword() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldFailWhenSubmittingEmptyPassword( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -421,9 +468,13 @@ public class AuthenticationIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( util.eventuallyReceives( msgIgnored(), msgSuccess(), msgSuccess(), msgSuccess() ) );
     }
 
-    @Test
-    public void shouldNotBeAbleToReadWhenPasswordChangeRequired() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldNotBeAbleToReadWhenPasswordChangeRequired(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )

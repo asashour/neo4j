@@ -19,23 +19,22 @@
  */
 package org.neo4j.bolt.transport;
 
-import org.apache.commons.lang3.StringUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.RuleChain;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.net.SocketException;
 import java.time.Duration;
-import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import org.neo4j.bolt.runtime.DefaultBoltConnection;
 import org.neo4j.bolt.testing.TransportTestUtil;
@@ -49,43 +48,43 @@ import org.neo4j.graphdb.config.Setting;
 import org.neo4j.internal.helpers.HostnamePort;
 import org.neo4j.logging.AssertableLogProvider;
 import org.neo4j.test.TestDatabaseManagementServiceBuilder;
-import org.neo4j.test.rule.OtherThreadRule;
-import org.neo4j.test.rule.fs.EphemeralFileSystemRule;
+import org.neo4j.test.rule.OtherThreadRuleJUnit5;
+import org.neo4j.test.rule.fs.EphemeralFileSystemRuleJUnit5;
 
-import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
 import static org.apache.commons.lang3.exception.ExceptionUtils.getRootCause;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.neo4j.bolt.testing.MessageConditions.msgSuccess;
 import static org.neo4j.configuration.connectors.BoltConnector.EncryptionLevel.OPTIONAL;
 import static org.neo4j.kernel.impl.util.ValueUtils.asMapValue;
 import static org.neo4j.logging.AssertableLogProvider.Level.ERROR;
 import static org.neo4j.logging.LogAssertions.assertThat;
 
-@RunWith( Parameterized.class )
 public class BoltThrottleMaxDurationIT
 {
     private AssertableLogProvider logProvider;
-    private EphemeralFileSystemRule fsRule = new EphemeralFileSystemRule();
-    private Neo4jWithSocket server = new Neo4jWithSocket( getClass(), getTestGraphDatabaseFactory(), fsRule, getSettingsFunction() );
 
-    @Rule
-    public RuleChain ruleChain = RuleChain.outerRule( fsRule ).around( server );
-    @Rule
-    public OtherThreadRule<Void> otherThread = new OtherThreadRule<>( 5, TimeUnit.MINUTES );
-    @Parameterized.Parameter
-    public Factory<TransportConnection> cf;
+    @RegisterExtension
+    @Order( 1 )
+    EphemeralFileSystemRuleJUnit5 fsRule = new EphemeralFileSystemRuleJUnit5();
+
+    @RegisterExtension
+    @Order( 2 )
+    Neo4jWithSocketJUnit5 server = new Neo4jWithSocketJUnit5( getClass(), getTestGraphDatabaseFactory(), fsRule, getSettingsFunction() );
+
+    @RegisterExtension
+    public OtherThreadRuleJUnit5<Void> otherThread = new OtherThreadRuleJUnit5<>( 5, TimeUnit.MINUTES );
 
     private HostnamePort address;
     private TransportConnection client;
     private TransportTestUtil util;
 
-    @Parameterized.Parameters
-    public static Collection<Factory<TransportConnection>> transports()
+    public static Stream<Arguments> factoryProvider()
     {
         // we're not running with WebSocketChannels because of their duplex communication model
-        return asList( SocketConnection::new, SecureSocketConnection::new );
+        return Stream.of( Arguments.of( (Factory<TransportConnection>) SocketConnection::new),
+                Arguments.of( (Factory<TransportConnection>) SecureSocketConnection::new ) );
     }
 
     protected TestDatabaseManagementServiceBuilder getTestGraphDatabaseFactory()
@@ -108,15 +107,14 @@ public class BoltThrottleMaxDurationIT
         };
     }
 
-    @Before
+    @BeforeEach
     public void setup()
     {
-        client = cf.newInstance();
         address = server.lookupDefaultConnector();
         util = new TransportTestUtil();
     }
 
-    @After
+    @AfterEach
     public void after() throws Exception
     {
         if ( client != null )
@@ -125,9 +123,12 @@ public class BoltThrottleMaxDurationIT
         }
     }
 
-    @Test
-    public void sendingButNotReceivingClientShouldBeKilledWhenWriteThrottleMaxDurationIsReached() throws Exception
+    @ParameterizedTest( name = "{displayName} {index}" )
+    @MethodSource( "factoryProvider" )
+    public void sendingButNotReceivingClientShouldBeKilledWhenWriteThrottleMaxDurationIsReached( Factory<TransportConnection> cf ) throws Exception
     {
+        this.client =  cf.newInstance();
+
         int numberOfRunDiscardPairs = 10_000;
         String largeString = " ".repeat( 8 * 1024 );
 

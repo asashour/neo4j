@@ -19,9 +19,10 @@
  */
 package org.neo4j.bolt.transport;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -30,11 +31,13 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import org.neo4j.bolt.AbstractBoltTransportsTest;
+import org.neo4j.bolt.packstream.Neo4jPack;
+import org.neo4j.bolt.testing.client.TransportConnection;
 import org.neo4j.configuration.connectors.BoltConnector;
 import org.neo4j.graphdb.config.Setting;
 import org.neo4j.io.ByteUnit;
 import org.neo4j.io.memory.ByteBuffers;
-import org.neo4j.test.rule.OtherThreadRule;
+import org.neo4j.test.rule.OtherThreadRuleJUnit5;
 
 import static java.nio.ByteOrder.BIG_ENDIAN;
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -45,13 +48,13 @@ import static org.neo4j.configuration.connectors.BoltConnector.EncryptionLevel.O
 
 public class TransportUnauthenticatedConnectionTimeoutErrorIT extends AbstractBoltTransportsTest
 {
-    @Rule
-    public Neo4jWithSocket server = new Neo4jWithSocket( getClass(), getSettingsFunction() );
+    @RegisterExtension
+    public Neo4jWithSocketJUnit5 server = new Neo4jWithSocketJUnit5( getClass(), getSettingsFunction() );
 
-    @Rule
-    public OtherThreadRule<Void> otherThread = new OtherThreadRule<>( 1, MINUTES );
+    @RegisterExtension
+    public OtherThreadRuleJUnit5<Void> otherThread = new OtherThreadRuleJUnit5<>( 1, MINUTES );
 
-    @Before
+    @BeforeEach
     public void setup()
     {
         address = server.lookupDefaultConnector();
@@ -66,9 +69,12 @@ public class TransportUnauthenticatedConnectionTimeoutErrorIT extends AbstractBo
         };
     }
 
-    @Test
-    public void shouldFinishHelloMessage() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldFinishHelloMessage( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -82,9 +88,12 @@ public class TransportUnauthenticatedConnectionTimeoutErrorIT extends AbstractBo
         assertThat( connection ).satisfies( eventuallyDisconnects() );
     }
 
-    @Test
-    public void shouldTimeoutTooSlowConnection() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldTimeoutTooSlowConnection( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // Given
         var handshakeBytes = util.defaultAcceptedVersions();
 
@@ -107,9 +116,13 @@ public class TransportUnauthenticatedConnectionTimeoutErrorIT extends AbstractBo
         assertThat( connection ).satisfies( eventuallyDisconnects() );
     }
 
-    @Test
-    public void shouldTimeoutToHandshakeForHalfHandshake() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldTimeoutToHandshakeForHalfHandshake(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // Given half written bolt handshake message
         ByteBuffer bb = ByteBuffers.allocate( Integer.BYTES, BIG_ENDIAN );
         bb.putInt( 0x6060B017 );
@@ -120,9 +133,13 @@ public class TransportUnauthenticatedConnectionTimeoutErrorIT extends AbstractBo
         assertThat( connection ).satisfies( eventuallyDisconnects() );
     }
 
-    @Test
-    public void shouldTimeoutToAuthForHalfHelloMessage() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldTimeoutToAuthForHalfHelloMessage(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // Given half written hello message
         var helloMessage = util.defaultAuth();
         var buffer = ByteBuffer.wrap( helloMessage, 0, helloMessage.length / 2 );
@@ -139,9 +156,14 @@ public class TransportUnauthenticatedConnectionTimeoutErrorIT extends AbstractBo
         assertThat( connection ).satisfies( eventuallyDisconnects() );
     }
 
-    @Test
-    public void shouldCloseConnectionDueToTooBigHelloMessage() throws Throwable
+
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldCloseConnectionDueToTooBigHelloMessage(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         Map<String,Object> authMeta = new HashMap<>();
         for ( int i = 0; i < 100; i++ )

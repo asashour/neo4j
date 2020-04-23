@@ -19,14 +19,14 @@
  */
 package org.neo4j.bolt.transport;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
-import java.util.Collection;
+import java.util.stream.Stream;
 
 import org.neo4j.bolt.testing.TransportTestUtil;
 import org.neo4j.bolt.testing.client.SocketConnection;
@@ -36,40 +36,34 @@ import org.neo4j.configuration.connectors.BoltConnector;
 import org.neo4j.function.Factory;
 import org.neo4j.internal.helpers.HostnamePort;
 
-import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.neo4j.bolt.testing.TransportTestUtil.eventuallyDisconnects;
 import static org.neo4j.configuration.connectors.BoltConnector.EncryptionLevel.REQUIRED;
 
-@RunWith( Parameterized.class )
 public class RequiredTransportEncryptionIT
 {
-    @Rule
-    public Neo4jWithSocket server = new Neo4jWithSocket( getClass(),
+    @RegisterExtension
+    public Neo4jWithSocketJUnit5 server = new Neo4jWithSocketJUnit5( getClass(),
             settings -> settings.put( BoltConnector.encryption_level, REQUIRED ) );
-
-    @Parameterized.Parameter( 0 )
-    public Factory<TransportConnection> cf;
 
     private HostnamePort address;
     private TransportConnection client;
     private TransportTestUtil util;
 
-    @Parameterized.Parameters
-    public static Collection<Factory<TransportConnection>> transports()
+    public static Stream<Arguments> factoryProvider()
     {
-        return asList( SocketConnection::new, WebSocketConnection::new );
+        return Stream.of( Arguments.of( (Factory<TransportConnection>) SocketConnection::new ),
+                Arguments.of( (Factory<TransportConnection>) WebSocketConnection::new ) );
     }
 
-    @Before
+    @BeforeEach
     public void setup()
     {
-        this.client = cf.newInstance();
         this.address = server.lookupDefaultConnector();
         this.util = new TransportTestUtil();
     }
 
-    @After
+    @AfterEach
     public void teardown() throws Exception
     {
         if ( client != null )
@@ -78,9 +72,12 @@ public class RequiredTransportEncryptionIT
         }
     }
 
-    @Test
-    public void shouldCloseUnencryptedConnectionOnHandshakeWhenEncryptionIsRequired() throws Throwable
+    @ParameterizedTest( name = "{displayName} {index}" )
+    @MethodSource( "factoryProvider" )
+    public void shouldCloseUnencryptedConnectionOnHandshakeWhenEncryptionIsRequired( Factory<TransportConnection> cf ) throws Throwable
     {
+        this.client = cf.newInstance();
+
         // When
         client.connect( address ).send( util.defaultAcceptedVersions() );
 

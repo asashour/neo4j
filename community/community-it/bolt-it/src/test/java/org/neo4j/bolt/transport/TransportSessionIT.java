@@ -20,14 +20,17 @@
 package org.neo4j.bolt.transport;
 
 import org.assertj.core.api.Condition;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.HashMap;
 
 import org.neo4j.bolt.AbstractBoltTransportsTest;
+import org.neo4j.bolt.packstream.Neo4jPack;
 import org.neo4j.bolt.testing.TestNotification;
+import org.neo4j.bolt.testing.client.TransportConnection;
 import org.neo4j.graphdb.InputPosition;
 import org.neo4j.graphdb.SeverityLevel;
 import org.neo4j.internal.helpers.HostnamePort;
@@ -50,20 +53,23 @@ import static org.neo4j.values.storable.Values.stringValue;
 
 public class TransportSessionIT extends AbstractBoltTransportsTest
 {
-    @Rule
-    public Neo4jWithSocket server = new Neo4jWithSocket( getClass(), getSettingsFunction() );
+    @RegisterExtension
+    public Neo4jWithSocketJUnit5 server = new Neo4jWithSocketJUnit5( getClass(), getSettingsFunction() );
 
     private HostnamePort address;
 
-    @Before
+    @BeforeEach
     public void setup()
     {
         address = server.lookupDefaultConnector();
     }
 
-    @Test
-    public void shouldNegotiateProtocolVersion() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldNegotiateProtocolVersion( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() );
@@ -72,9 +78,12 @@ public class TransportSessionIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( util.eventuallyReceivesSelectedProtocolVersion() );
     }
 
-    @Test
-    public void shouldReturnNilOnNoApplicableVersion() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldReturnNilOnNoApplicableVersion( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.acceptedVersions( 1337, 0, 0, 0 ) );
@@ -83,9 +92,12 @@ public class TransportSessionIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( eventuallyReceives( new byte[]{0, 0, 0, 0} ) );
     }
 
-    @Test
-    public void shouldRunSimpleStatement() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldRunSimpleStatement( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -105,9 +117,12 @@ public class TransportSessionIT extends AbstractBoltTransportsTest
                         .containsKey( "t_last" ).containsEntry( "type", "r" ) ) ) );
     }
 
-    @Test
-    public void shouldRespondWithMetadataToDiscardAll() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldRespondWithMetadataToDiscardAll( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -124,9 +139,12 @@ public class TransportSessionIT extends AbstractBoltTransportsTest
                         .containsKey("t_last" ).containsEntry( "type", "r" ) ) ) );
     }
 
-    @Test
-    public void shouldBeAbleToRunQueryAfterAckFailure() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldBeAbleToRunQueryAfterAckFailure( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // Given
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -152,9 +170,12 @@ public class TransportSessionIT extends AbstractBoltTransportsTest
                 msgSuccess() ) );
     }
 
-    @Test
-    public void shouldRunProcedure() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldRunProcedure( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // Given
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -181,9 +202,12 @@ public class TransportSessionIT extends AbstractBoltTransportsTest
         ) );
     }
 
-    @Test
-    public void shouldHandleDeletedNodes() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldHandleDeletedNodes( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -211,9 +235,12 @@ public class TransportSessionIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( util.eventuallyReceives( msgSuccess() ) );
     }
 
-    @Test
-    public void shouldHandleDeletedRelationships() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldHandleDeletedRelationships( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -242,9 +269,12 @@ public class TransportSessionIT extends AbstractBoltTransportsTest
         assertThat( connection ).satisfies( util.eventuallyReceives( msgSuccess() ) );
     }
 
-    @Test
-    public void shouldNotLeakStatsToNextStatement() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldNotLeakStatsToNextStatement( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // Given
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -267,9 +297,12 @@ public class TransportSessionIT extends AbstractBoltTransportsTest
                         .containsKey( "t_last" ).containsEntry( "type", "r" ) ) ) );
     }
 
-    @Test
-    public void shouldSendNotifications() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldSendNotifications( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
@@ -302,9 +335,12 @@ public class TransportSessionIT extends AbstractBoltTransportsTest
         return bytes;
     }
 
-    @Test
-    public void shouldFailNicelyOnNullKeysInMap() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldFailNicelyOnNullKeysInMap( Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         //Given
         HashMap<String,Object> params = new HashMap<>();
         HashMap<String,Object> inner = new HashMap<>();
@@ -337,9 +373,13 @@ public class TransportSessionIT extends AbstractBoltTransportsTest
                 msgSuccess() ) );
     }
 
-    @Test
-    public void shouldFailNicelyWhenDroppingUnknownIndex() throws Throwable
+    @ParameterizedTest( name = "{displayName} {2}" )
+    @MethodSource( "argumentsProvider" )
+    public void shouldFailNicelyWhenDroppingUnknownIndex(
+            Class<? extends TransportConnection> connectionClass, Neo4jPack neo4jPack, String name ) throws Throwable
     {
+        initParameters( connectionClass, neo4jPack, name );
+
         // When
         connection.connect( address )
                 .send( util.defaultAcceptedVersions() )
